@@ -24,7 +24,7 @@
             border: 1px solid #2d3a5e;
             text-align: center;
         }
-        input, button {
+        input, button, select {
             width: 100%;
             padding: 14px;
             margin: 8px 0;
@@ -32,64 +32,185 @@
             border: none;
             font-size: 1rem;
         }
-        input { background: #010a1a; border: 1px solid #2f4172; color: #ffdd99; }
+        input, select { background: #010a1a; border: 1px solid #2f4172; color: #ffdd99; }
         button { background: #3b6ea0; color: white; font-weight: bold; cursor: pointer; }
         .hidden { display: none; }
         .footer { font-size: 0.7rem; color: #5b6b8e; margin-top: 20px; }
+        .small-btn { background: #6b8cae; margin-top: 8px; }
     </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
 <div class="card" id="loginDiv">
     <h2>🔐 Unlock Ninurta‑V2</h2>
-    <input type="password" id="loginPin" placeholder="Enter 4-digit PIN" maxlength="4">
+    <input type="password" id="loginPin" placeholder="Enter 4-digit PIN" maxlength="4" autocomplete="off">
     <button id="unlockBtn">Unlock</button>
+    <button id="forgotPinBtn" class="small-btn">❓ Forgot PIN</button>
     <div class="footer">Secure wallet · Your keys, your coins</div>
 </div>
 
+<!-- SETUP PIN SCREEN (First time) -->
+<div class="card hidden" id="setupDiv">
+    <h2>🔐 Set Your PIN</h2>
+    <input type="password" id="newPin" placeholder="Enter 4-digit PIN" maxlength="4">
+    <input type="password" id="confirmPin" placeholder="Confirm PIN" maxlength="4">
+    <button id="savePinBtn">Save PIN</button>
+    <div class="footer">This PIN unlocks your wallet</div>
+</div>
+
+<!-- CHANGE PIN SCREEN (Inside app) -->
+<div class="card hidden" id="changePinDiv">
+    <h2>🔐 Change PIN</h2>
+    <input type="password" id="oldPin" placeholder="Current PIN" maxlength="4">
+    <input type="password" id="newPin1" placeholder="New PIN" maxlength="4">
+    <input type="password" id="newPin2" placeholder="Confirm New PIN" maxlength="4">
+    <button id="changePinSaveBtn">Update PIN</button>
+    <button id="changePinCancelBtn" class="small-btn">Cancel</button>
+</div>
+
+<!-- MAIN APP SCREEN -->
 <div class="card hidden" id="appDiv">
     <h1>⚡ NINURTA‑V2</h1>
-    <div class="balance" id="balance">1,250.00</div>
+    <div class="balance" style="font-size: 2rem; color: #ffdd99; margin: 10px 0;" id="balance">1,250.00</div>
     <select id="currency">
-        <option value="USD">USD</option><option value="EUR">EUR</option>
-        <option value="CNY">CNY</option><option value="THB">THB</option>
-        <option value="BDT">BDT</option><option value="INR">INR</option>
+        <option value="USD">💵 USD</option><option value="EUR">💶 EUR</option>
+        <option value="CNY">💴 CNY</option><option value="THB">฿ THB</option>
+        <option value="BDT">৳ BDT</option><option value="INR">₹ INR</option>
     </select>
-    <input type="text" id="recipient" placeholder="Recipient">
+    <input type="text" id="recipient" placeholder="Recipient ID / Phone / Email">
     <input type="number" id="amount" placeholder="Amount">
-    <button id="sendBtn">✈️ Send</button>
-    <button id="logoutBtn" style="background:#6b8cae;">🔒 Lock</button>
-    <div id="status"></div>
+    <button id="sendBtn">✈️ Send Payment</button>
+    <button id="changePinFromAppBtn" class="small-btn">🔐 Change PIN</button>
+    <button id="logoutBtn" class="small-btn" style="background:#8b5a2b;">🔒 Lock</button>
+    <div id="status" style="color:#88aaff; margin-top:12px;"></div>
+    <div class="footer">🔐 PIN protected · Multi‑currency · No SWIFT</div>
 </div>
 
 <script>
-    const CORRECT_PIN = "1234"; // Change this
+    // Storage keys
+    const STORAGE_KEY = 'ninurta_pin';
+    const BALANCE_KEY = 'ninurta_balance';
+    const RATES = { USD:1, EUR:0.92, CNY:7.22, THB:36.5, BDT:109.5, INR:83.2 };
+    let currentCurrency = 'USD';
+    let balanceUSD = parseFloat(localStorage.getItem(BALANCE_KEY)) || 1250;
 
-    function showApp() {
+    // Helper: update balance display
+    function updateBalanceDisplay() {
+        const converted = (balanceUSD * (RATES[currentCurrency] || 1)).toFixed(2);
+        document.getElementById('balance').innerText = converted;
+    }
+
+    // Switch screens
+    function showScreen(screenId) {
         document.getElementById('loginDiv').classList.add('hidden');
-        document.getElementById('appDiv').classList.remove('hidden');
-    }
-
-    function showLogin() {
-        document.getElementById('loginDiv').classList.remove('hidden');
+        document.getElementById('setupDiv').classList.add('hidden');
+        document.getElementById('changePinDiv').classList.add('hidden');
         document.getElementById('appDiv').classList.add('hidden');
-        document.getElementById('loginPin').value = '';
+        document.getElementById(screenId).classList.remove('hidden');
     }
 
-    document.getElementById('unlockBtn').addEventListener('click', () => {
-        const pin = document.getElementById('loginPin').value;
-        if (pin === CORRECT_PIN) showApp();
-        else alert('Wrong PIN');
+    // Check if PIN is set
+    const savedPin = localStorage.getItem(STORAGE_KEY);
+    if (!savedPin) {
+        showScreen('setupDiv');
+    } else {
+        showScreen('loginDiv');
+    }
+
+    // Setup PIN
+    document.getElementById('savePinBtn')?.addEventListener('click', () => {
+        const newPin = document.getElementById('newPin').value;
+        const confirmPin = document.getElementById('confirmPin').value;
+        if (!newPin || !confirmPin) { alert('Enter PIN twice'); return; }
+        if (newPin.length !== 4 || isNaN(newPin)) { alert('PIN must be 4 digits'); return; }
+        if (newPin !== confirmPin) { alert('PINs do not match'); return; }
+        localStorage.setItem(STORAGE_KEY, newPin);
+        alert('PIN saved!');
+        showScreen('loginDiv');
+        document.getElementById('newPin').value = '';
+        document.getElementById('confirmPin').value = '';
     });
 
-    document.getElementById('logoutBtn').addEventListener('click', showLogin);
+    // Login
+    document.getElementById('unlockBtn')?.addEventListener('click', () => {
+        const entered = document.getElementById('loginPin').value;
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (entered === stored) {
+            showScreen('appDiv');
+            document.getElementById('loginPin').value = '';
+            updateBalanceDisplay();
+        } else {
+            alert('Wrong PIN');
+        }
+    });
 
-    // Reuse existing send logic (simplified)
-    document.getElementById('sendBtn').addEventListener('click', () => {
+    // Forgot PIN (security question – demo)
+    document.getElementById('forgotPinBtn')?.addEventListener('click', () => {
+        const answer = prompt('What is your favorite color? (Default: blue)');
+        if (answer && answer.toLowerCase() === 'blue') {
+            const newPin = prompt('Enter new 4-digit PIN');
+            if (newPin && newPin.length === 4 && !isNaN(newPin)) {
+                localStorage.setItem(STORAGE_KEY, newPin);
+                alert('PIN reset! Use new PIN to login.');
+                showScreen('loginDiv');
+            } else { alert('Invalid PIN'); }
+        } else { alert('Wrong answer. PIN not reset.'); }
+    });
+
+    // Logout
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+        showScreen('loginDiv');
+    });
+
+    // Currency change
+    document.getElementById('currency')?.addEventListener('change', (e) => {
+        currentCurrency = e.target.value;
+        updateBalanceDisplay();
+    });
+
+    // Send payment (simplified)
+    document.getElementById('sendBtn')?.addEventListener('click', () => {
         const recipient = document.getElementById('recipient').value;
-        const amount = document.getElementById('amount').value;
-        if (!recipient || !amount) { alert('Enter recipient and amount'); return; }
-        alert(`✅ Sent ${amount} to ${recipient}`);
+        const amount = parseFloat(document.getElementById('amount').value);
+        if (!recipient || isNaN(amount)) { alert('Enter recipient and amount'); return; }
+        const amountUSD = amount / (RATES[currentCurrency] || 1);
+        if (amountUSD > balanceUSD) { alert('Insufficient balance'); return; }
+        balanceUSD -= amountUSD;
+        localStorage.setItem(BALANCE_KEY, balanceUSD);
+        updateBalanceDisplay();
+        document.getElementById('status').innerHTML = `✅ Sent ${amount} ${currentCurrency} to ${recipient}`;
+        setTimeout(() => document.getElementById('status').innerHTML = '', 3000);
+        document.getElementById('amount').value = '';
+        document.getElementById('recipient').value = '';
     });
+
+    // Change PIN (inside app)
+    document.getElementById('changePinFromAppBtn')?.addEventListener('click', () => {
+        showScreen('changePinDiv');
+    });
+    document.getElementById('changePinCancelBtn')?.addEventListener('click', () => {
+        showScreen('appDiv');
+    });
+    document.getElementById('changePinSaveBtn')?.addEventListener('click', () => {
+        const old = document.getElementById('oldPin').value;
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (old !== stored) { alert('Current PIN incorrect'); return; }
+        const new1 = document.getElementById('newPin1').value;
+        const new2 = document.getElementById('newPin2').value;
+        if (!new1 || !new2) { alert('Enter new PIN twice'); return; }
+        if (new1.length !== 4 || isNaN(new1)) { alert('New PIN must be 4 digits'); return; }
+        if (new1 !== new2) { alert('New PINs do not match'); return; }
+        localStorage.setItem(STORAGE_KEY, new1);
+        alert('PIN changed successfully');
+        showScreen('appDiv');
+        document.getElementById('oldPin').value = '';
+        document.getElementById('newPin1').value = '';
+        document.getElementById('newPin2').value = '';
+    });
+
+    // Also set balance on update
+    updateBalanceDisplay();
 </script>
 </body>
 </html>
