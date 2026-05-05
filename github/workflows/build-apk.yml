@@ -1,59 +1,15 @@
-name: Build Android APK
+name: PWA to APK
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - name: PWA to APK action
+        uses: sharadcodes/pwa-to-apk-action@v1.0.0
         with:
-          node-version: '20'
-      
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      
-      - name: Install Capacitor
-        run: |
-          npm install -g @capacitor/core @capacitor/cli @capacitor/android
-      
-      - name: Create Android project
-        run: |
-          npx cap init Ninurta-V2 com.ninurta.v2 --web-dir=.
-          npx cap add android
-      
-      - name: Sync web files to Android
-        run: npx cap sync android
-      
-      - name: Build APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-      
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ninurta-v2-apk
-          path: android/app/build/outputs/apk/debug/*.apk
-      
-      - name: Create Release and Upload APK
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v1.0
-          name: Ninurta-V2 APK
-          files: android/app/build/outputs/apk/debug/*.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          project-root-folder: '.'
