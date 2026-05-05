@@ -5,15 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0a0f1e">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Ninurta-V2">
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%233b6ea0'/%3E%3Ctext x='50' y='67' font-size='50' text-anchor='middle' fill='white'%3E⚡%3C/text%3E%3C/svg%3E">
-    <title>Ninurta‑V2 · Secure Transfer</title>
+    <title>Ninurta‑V2 · Multi‑Currency Transfer</title>
     <style>
         body {
             background: #0a0f1e;
-            font-family: system-ui, -apple-system, 'Segoe UI', monospace;
+            font-family: system-ui;
             margin: 0;
             padding: 20px;
             display: flex;
@@ -25,24 +22,11 @@
             max-width: 550px;
             width: 100%;
             background: #111827cc;
-            backdrop-filter: blur(4px);
             border-radius: 48px;
             padding: 24px;
             border: 1px solid #2d3a5e;
-            box-shadow: 0 20px 35px rgba(0,0,0,0.5);
         }
-        h1 {
-            text-align: center;
-            color: white;
-            font-size: 1.8rem;
-            margin: 0 0 8px;
-        }
-        .sub {
-            text-align: center;
-            color: #7e8cae;
-            font-size: 0.7rem;
-            margin-bottom: 20px;
-        }
+        h1 { text-align: center; color: white; margin: 0 0 8px; }
         .balance {
             background: #00000066;
             border-radius: 32px;
@@ -55,6 +39,16 @@
             font-weight: bold;
             color: #ffdd99;
         }
+        .currency-select {
+            background: #010a1a;
+            border: 1px solid #2f4172;
+            color: #ffdd99;
+            padding: 12px;
+            border-radius: 40px;
+            width: 100%;
+            margin: 8px 0;
+            font-size: 1rem;
+        }
         input, button {
             width: 100%;
             padding: 14px;
@@ -62,108 +56,94 @@
             border-radius: 40px;
             border: none;
             font-size: 1rem;
-            box-sizing: border-box;
         }
-        input {
-            background: #010a1a;
-            border: 1px solid #2f4172;
-            color: #ffdd99;
-        }
-        button {
-            background: #3b6ea0;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-        }
-        button:active { transform: scale(0.97); }
-        .install-btn {
-            background: #4caf50;
-            margin-bottom: 16px;
-        }
-        .footer {
-            font-size: 0.65rem;
-            text-align: center;
-            color: #5b6b8e;
-            margin-top: 20px;
-        }
-        #status {
-            color: #88aaff;
-            text-align: center;
-            margin-top: 12px;
-            font-size: 0.8rem;
-        }
+        input { background: #010a1a; border: 1px solid #2f4172; color: #ffdd99; }
+        button { background: #3b6ea0; color: white; font-weight: bold; cursor: pointer; }
+        .footer { font-size: 0.65rem; text-align: center; color: #5b6b8e; margin-top: 20px; }
+        #status { color: #88aaff; text-align: center; margin-top: 12px; }
     </style>
 </head>
 <body>
 <div class="card">
     <h1>⚡ NINURTA‑V2</h1>
-    <div class="sub">Secure Transfer · PIN + SMS · No SWIFT</div>
-
-    <button id="installBtn" class="install-btn" style="display:none;">📱 Install App (Add to Home Screen)</button>
-
     <div class="balance">
         <div class="amount" id="balance">1,250.00</div>
-        <div>≈ $1,250 USD</div>
+        <div id="balanceCurrency">USD</div>
     </div>
 
-    <input type="text" id="recipient" placeholder="Recipient ID / Phone / Email" value="+66615729906">
-    <input type="number" id="amount" placeholder="Amount (USD)" value="50">
+    <select id="currency" class="currency-select">
+        <option value="USD">💵 USD - US Dollar</option>
+        <option value="EUR">💶 EUR - Euro</option>
+        <option value="CNY">💴 CNY - Chinese Yuan</option>
+        <option value="THB">฿ THB - Thai Baht</option>
+        <option value="BDT">৳ BDT - Bangladeshi Taka</option>
+        <option value="INR">₹ INR - Indian Rupee</option>
+    </select>
+
+    <input type="text" id="recipient" placeholder="Recipient ID / Phone / Email">
+    <input type="number" id="amount" placeholder="Amount">
     <button id="sendBtn">✈️ Send Payment</button>
     <div id="status"></div>
-
-    <div class="footer">🔐 PIN + SMS verification · Every transaction</div>
+    <div class="footer">🔐 PIN + SMS · Multi‑currency · No SWIFT</div>
 </div>
 
 <script>
-    // Send payment logic with PIN + SMS
+    // Exchange rates (relative to USD – demo values, replace with real API)
+    const rates = {
+        USD: 1,
+        EUR: 0.92,
+        CNY: 7.22,
+        THB: 36.5,
+        BDT: 109.5,
+        INR: 83.2
+    };
+
+    const symbols = {
+        USD: '$', EUR: '€', CNY: '¥', THB: '฿', BDT: '৳', INR: '₹'
+    };
+
+    let currentCurrency = 'USD';
+    let balanceUSD = 1250; // store balance in USD internally
+
+    function updateDisplay() {
+        const converted = (balanceUSD * rates[currentCurrency]).toFixed(2);
+        document.getElementById('balance').innerText = converted;
+        document.getElementById('balanceCurrency').innerText = currentCurrency;
+    }
+
+    document.getElementById('currency').addEventListener('change', (e) => {
+        currentCurrency = e.target.value;
+        updateDisplay();
+    });
+
     document.getElementById('sendBtn').addEventListener('click', async () => {
         const recipient = document.getElementById('recipient').value;
-        const amount = parseFloat(document.getElementById('amount').value);
+        let amount = parseFloat(document.getElementById('amount').value);
         if (!recipient || isNaN(amount)) { alert('Enter recipient and amount'); return; }
+
+        // Convert amount to USD for balance check
+        const amountUSD = amount / rates[currentCurrency];
+        if (amountUSD > balanceUSD) { alert('Insufficient balance'); return; }
 
         // PIN verification
         const pin = prompt("Enter your 4-digit PIN:");
         if (pin !== "1234") { alert("Invalid PIN"); return; }
 
-        // SMS simulation (in real app, send to backend)
+        // SMS simulation
         const smsCode = Math.floor(100000 + Math.random() * 900000);
         alert(`SMS sent to your registered number. Code: ${smsCode}`);
         const userCode = prompt("Enter SMS code:");
         if (userCode != smsCode) { alert("Invalid SMS code"); return; }
 
         // Update balance
-        let balanceEl = document.getElementById('balance');
-        let current = parseFloat(balanceEl.innerText);
-        balanceEl.innerText = (current - amount).toFixed(2);
-        document.getElementById('status').innerHTML = `✅ Sent $${amount} to ${recipient}`;
+        balanceUSD -= amountUSD;
+        updateDisplay();
+        document.getElementById('status').innerHTML = `✅ Sent ${symbols[currentCurrency]}${amount.toFixed(2)} ${currentCurrency} to ${recipient}`;
         setTimeout(() => document.getElementById('status').innerHTML = '', 3000);
+        document.getElementById('amount').value = '';
     });
 
-    // PWA Installation
-    let deferredPrompt = null;
-    const installBtn = document.getElementById('installBtn');
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        installBtn.style.display = 'block';
-    });
-
-    installBtn.addEventListener('click', async () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            const outcome = await deferredPrompt.userChoice;
-            if (outcome.outcome === 'accepted') {
-                installBtn.style.display = 'none';
-            }
-            deferredPrompt = null;
-        }
-    });
-
-    // Register service worker for offline and installability
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(err => console.log('ServiceWorker registration failed:', err));
-    }
+    updateDisplay();
 </script>
 </body>
 </html>
